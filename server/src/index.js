@@ -2,8 +2,13 @@ import express from 'express';
 import dotenv from 'dotenv';
 import {Server} from 'socket.io';
 import http from 'http';
+import mongoose from 'mongoose'
+import cors from 'cors';
 
 dotenv.config();
+const mongoURL = process.env.MONGO_URL;
+const port = process.env.PORT || 3000;
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server,{
@@ -13,7 +18,8 @@ const io = new Server(server,{
     }
 });
 
-const port = process.env.PORT || 3000;
+app.use(cors());
+app.use(express.json());
 
 io.on('connection', (socket) => {
   console.log(`A user connected with connection id ${socket.id}`);
@@ -32,6 +38,12 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(port,()=>{
-    console.log(`Server running at port: ${port}`);
-})  
+server.listen(port,async ()=>{
+    try{
+        await mongoose.connect(mongoURL)
+        console.log('MongoDB connected');
+        console.log(`Server running at port: ${port}`);
+    } catch (error) {
+        console.error('Error connecting to MongoDB:', error);
+    }
+});
