@@ -8,6 +8,7 @@ import CallUI from '../components/callUI';
 
 
 
+
 const SOCKET_SERVER_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
 const socket = io.connect(SOCKET_SERVER_URL);
 
@@ -35,7 +36,6 @@ const ChatRoom = () => {
   const localStreamRef = useRef(null); 
   const remoteAudioRef = useRef(null); 
   const messageContainerRef = useRef(null);
-  const lastMessageRef = useRef(null);
 
   const toggleMute = useCallback(async () => {
     try {
