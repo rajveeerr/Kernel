@@ -36,6 +36,25 @@ const ChatRoom = () => {
   const localStreamRef = useRef(null); 
   const remoteAudioRef = useRef(null); 
   const messageContainerRef = useRef(null);
+  const pendingIceRef = useRef([]);
+
+  const safeAddIceCandidate = useCallback(async (pc, candidate) => {
+    if (!pc) {
+      pendingIceRef.current.push(candidate);
+      return;
+    }
+
+    try {
+      await pc.addIceCandidate(candidate);
+    } catch (err) {
+      const isInvalidState = err && (err.name === 'InvalidStateError' || /remote description/i.test(err.message || ''));
+      if (isInvalidState) {
+        pendingIceRef.current.push(candidate);
+      } else {
+        console.warn('safeAddIceCandidate error:', err);
+      }
+    }
+  }, []);
 
   const toggleMute = useCallback(async () => {
     try {
@@ -137,6 +156,12 @@ const ChatRoom = () => {
         };
 
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        if (pendingIceRef.current.length) {
+          for (const c of pendingIceRef.current) {
+            await safeAddIceCandidate(pc, c);
+          }
+          pendingIceRef.current = [];
+        }
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
@@ -151,19 +176,26 @@ const ChatRoom = () => {
       try {
         if (peerConnectionRef.current) {
           await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+          if (pendingIceRef.current.length) {
+            for (const c of pendingIceRef.current) {
+              await safeAddIceCandidate(peerConnectionRef.current, c);
+            }
+            pendingIceRef.current = [];
+          }
         }
       } catch (error) {
         console.error('Error setting remote description:', error);
       }
     };
 
-    const iceCandidateListener = (data) => {
+    const iceCandidateListener = async (data) => {
       try {
-        if (peerConnectionRef.current) {
-          peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
-        }
+        const cand = data && data.candidate;
+        if (!cand) return; 
+  const rtcCandidate = new RTCIceCandidate(cand);
+  await safeAddIceCandidate(peerConnectionRef.current, rtcCandidate);
       } catch (error) {
-        console.error('Error adding ICE candidate:', error);
+        console.error('Error processing incoming ICE candidate:', error);
       }
     };
 
@@ -270,6 +302,7 @@ const ChatRoom = () => {
       localStreamRef.current.getTracks().forEach(track => track.stop());
       localStreamRef.current = null;
     }
+  pendingIceRef.current = [];
     setIsReceivingCall(false);
     setCallerInfo(null);
   };
@@ -283,6 +316,7 @@ const ChatRoom = () => {
         localStreamRef.current.getTracks().forEach(track => track.stop());
         localStreamRef.current = null;
     }
+  pendingIceRef.current = [];
     setIsInCall(false);
     setIsReceivingCall(false);
     setCallerInfo(null);
@@ -360,8 +394,11 @@ const ChatRoom = () => {
 
                 <div className="max-h-64 overflow-y-auto">
                   {onlineUsers.map((user) => (
-                    <button
+                    <div
                       key={user.id}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); /* click handler placeholder */ } }}
                       onClick={() => { }}
                       className="w-full text-left px-4 py-2 flex items-center gap-3 hover:bg-purple-900/10 transition-colors"
                     >
@@ -384,7 +421,7 @@ const ChatRoom = () => {
                         </div>
                         <div className="text-xs text-gray-400">{user.status || 'Available'}</div>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>
