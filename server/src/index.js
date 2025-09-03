@@ -25,7 +25,7 @@ app.use(express.json());
 
 app.use('/api/users', userRoutes);
 
-const roomUsers={} //will be keeping is as {"roomId":["user1","user2"]}
+const roomUsers={} //will be keeping is as {"roomId":[{username:"user1",id:"socketid"}]}
 
 io.on('connection', (socket) => {
   console.log(`A user connected with connection id ${socket.id}`);
@@ -33,30 +33,31 @@ io.on('connection', (socket) => {
   socket.on('join_room', (data) => {
     const { roomId, username } = data;
     socket.join(roomId);
-
     socket.roomId=roomId;
     socket.username=username;
 
     if(!roomUsers[roomId]){
         roomUsers[roomId]=[]
     }
-  roomUsers[roomId].push(username);
+  roomUsers[roomId].push({username,id:socket.id});
 
   io.in(roomId).emit('update_user_list', roomUsers[roomId] || []);
 
-    console.log(`User ${socket.id} joined room ${roomId}`);
   });
 
-  socket.on("offer",(payload)=>{
-    io.to(payload.target).emit("offer",payload);
+  socket.on("call-user",(payload)=>{
+    const {to,from,offer}=payload;
+    io.to(to).emit("call-made",{offer,from});
   })
 
-  socket.on("answer",(payload)=>{
-    io.to(payload.target).emit("answer",payload);
+  socket.on("make-answer",(data)=>{
+    const {to,answer}=data;
+    io.to(to).emit("answer-made",{answer});
   })
 
-  socket.on("ice-candidate",(payload)=>{
-    io.to(payload.target).emit("ice-candidate",payload);
+  socket.on("ice-candidate",(data)=>{
+    const {to,candidate}=data;
+    socket.to(to).emit("ice-candidate",{candidate});
   })
 
     socket.on('send_message', async (data) => {
@@ -64,10 +65,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    const {roomId,username}=socket;
+    const {roomId,id}=socket;
 
     if (roomUsers[roomId]) {
-      roomUsers[roomId] = roomUsers[roomId].filter(user => user !== username);
+      roomUsers[roomId] = roomUsers[roomId].filter(user => user.id !== id);
       console.log(`User disconnected id ${socket.id}`);
 
       io.in(roomId).emit('update_user_list', roomUsers[roomId] || []);
