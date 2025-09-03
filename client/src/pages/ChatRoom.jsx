@@ -22,15 +22,37 @@ const ChatRoom = () => {
   const [messages, setMessages] = useState([]);
   const [currentMessage, setCurrentMessage] = useState('');
   const [onlineUsers, setOnlineUsers] = useState([]);
+  const [oldMessagesLoaded, setOldMessagesLoaded] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
 
   const [isInCall, setIsInCall] = useState(false);
   const [isReceivingCall, setIsReceivingCall] = useState(false);
   const [callerInfo, setCallerInfo] = useState(null);
+  const [isMuted, setIsMuted] = useState(false);
 
   const peerConnectionRef = useRef(null); 
   const localStreamRef = useRef(null); 
-  const remoteStreamRef = useRef(null); 
+  const remoteAudioRef = useRef(null); 
   const messageContainerRef = useRef(null);
+
+  const toggleMute = useCallback(async () => {
+    try {
+      if (!localStreamRef.current) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        localStreamRef.current = stream;
+        if (peerConnectionRef.current) stream.getTracks().forEach(track => peerConnectionRef.current.addTrack(track, stream));
+      }
+
+      setIsMuted(prev => {
+        const newMuted = !prev;
+        localStreamRef.current.getAudioTracks().forEach(track => { track.enabled = !newMuted; });
+        return newMuted;
+      });
+    } catch (err) {
+      console.error('toggleMute error', err);
+      toast.error('Could not access microphone.');
+    }
+  }, []);
 
 
   useEffect(() => {
@@ -54,67 +76,105 @@ const ChatRoom = () => {
     socket.emit('join_room', { roomId, username });
 
     const messageListener = (data) => {
-      setMessages((prev) => [...prev, data]);
+      const messageWithTimestamp = {
+        ...data,
+        timestamp: data.timestamp || new Date().toISOString()
+      };
+      setMessages((prev) => [...prev, messageWithTimestamp]);
     };
 
     const userListListener = (users) => {
       setOnlineUsers(users);
     };
 
+    const loadOldMessagesListener = (oldMessages) => {
+      const formattedMessages = oldMessages.map(msg => ({
+        roomId: msg.roomId,
+        sender: msg.sender,
+        content: msg.content,
+        timestamp: msg.createdAt,
+        isOldMessage: true
+      }));
+      setMessages(formattedMessages);
+      setOldMessagesLoaded(true);
+      setLoadingMessages(false);
+    };
+
     const callMadeListener = async (data) => {
-      const { offer, from } = data;
-      setCallerInfo(from);
+      try {
+        const { offer, from } = data;
+        setCallerInfo(from);
 
-      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-      peerConnectionRef.current = pc;
+        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        peerConnectionRef.current = pc;
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      localStreamRef.current = stream;
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        localStreamRef.current = stream;
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          socket.emit('ice-candidate', { to: from.id, candidate: event.candidate });
-        }
-      };
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit('ice-candidate', { to: from.id, candidate: event.candidate });
+          }
+        };
 
-      pc.ontrack = (event) => {
-        if (remoteStreamRef.current) {
-          remoteStreamRef.current.srcObject = event.streams[0];
-        }
-      };
+        pc.ontrack = (event) => {
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = event.streams[0];
+          }
+        };
 
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
 
-      setIsReceivingCall(true);
+        setIsReceivingCall(true);
+      } catch (error) {
+        console.error('Error handling incoming call:', error);
+        toast.error('Could not handle incoming call.');
+      }
     };
 
     const answerMadeListener = async (data) => {
-      if(peerConnectionRef.current) {
-        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+      try {
+        if (peerConnectionRef.current) {
+          await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+        }
+      } catch (error) {
+        console.error('Error setting remote description:', error);
       }
     };
 
     const iceCandidateListener = (data) => {
-      if(peerConnectionRef.current) {
-        peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+      try {
+        if (peerConnectionRef.current) {
+          peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+      } catch (error) {
+        console.error('Error adding ICE candidate:', error);
       }
+    };
+
+    const messageErrorListener = (data) => {
+      toast.error(data.error || 'Failed to send message');
     };
 
     socket.on('receive_message', messageListener);
     socket.on('update_user_list', userListListener);
+    socket.on('load_old_messages', loadOldMessagesListener);
     socket.on('call-made', callMadeListener);
     socket.on('answer-made', answerMadeListener);
     socket.on('ice-candidate', iceCandidateListener);
+    socket.on('message_error', messageErrorListener);
 
     return () => {
       socket.off('receive_message', messageListener);
       socket.off('update_user_list', userListListener);
+      socket.off('load_old_messages', loadOldMessagesListener);
       socket.off('call-made', callMadeListener);
       socket.off('answer-made', answerMadeListener);
       socket.off('ice-candidate', iceCandidateListener);
+      socket.off('message_error', messageErrorListener);
     };
   }, [roomId, username]);
 
@@ -122,11 +182,17 @@ const ChatRoom = () => {
   const handleUsernameSubmit = (name) => {
     setUsername(name);
     setShowModal(false);
+    setLoadingMessages(true);
   };
 
   const sendMessage = async () => {
     if (currentMessage.trim() !== '' && username) {
-      const messageData = { roomId, sender: username, content: currentMessage };
+      const messageData = { 
+        roomId, 
+        sender: username, 
+        content: currentMessage,
+        timestamp: new Date().toISOString()
+      };
       await socket.emit('send_message', messageData);
       setMessages((prevMessages) => [...prevMessages, messageData]);
       setCurrentMessage('');
@@ -149,8 +215,8 @@ const ChatRoom = () => {
       };
       
       pc.ontrack = (event) => {
-        if (remoteStreamRef.current) {
-          remoteStreamRef.current.srcObject = event.streams[0];
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = event.streams[0];
         }
       };
 
@@ -167,12 +233,33 @@ const ChatRoom = () => {
   };
   
   const answerCall = async () => {
-    socket.emit('make-answer', {
-        to: callerInfo.id,
-        answer: peerConnectionRef.current.localDescription
-    });
+    try {
+      if (peerConnectionRef.current && callerInfo) {
+        socket.emit('make-answer', {
+          to: callerInfo.id,
+          answer: peerConnectionRef.current.localDescription
+        });
+        setIsReceivingCall(false);
+        setIsInCall(true);
+        toast.success('Call answered!');
+      }
+    } catch (error) {
+      console.error('Error answering call:', error);
+      toast.error('Could not answer call.');
+    }
+  };
+
+  const declineCall = () => {
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
+    }
     setIsReceivingCall(false);
-    setIsInCall(true);
+    setCallerInfo(null);
   };
   
   const endCall = useCallback(() => {
@@ -203,16 +290,25 @@ const ChatRoom = () => {
 
   return (
     <div className="bg-black flex flex-col h-screen text-white font-sans">
-      <audio ref={remoteStreamRef} autoPlay playsInline />
+      <audio ref={remoteAudioRef} autoPlay playsInline />
       
-      {isInCall && <CallUI onEndCall={endCall} callerUsername={callerInfo?.username || 'User'} />}
+      {isInCall && (
+        <CallUI 
+          isVisible={isInCall}
+          localUsername={username}
+          remoteUsername={callerInfo?.username || 'User'}
+          isMuted={isMuted}
+          onToggleMute={toggleMute}
+          onEndCall={endCall}
+        />
+      )}
 
       {isReceivingCall && (
         <div className="fixed top-5 right-5 bg-gray-800 p-4 rounded-lg shadow-lg z-50 border border-gray-700">
             <p><span className="font-bold">{callerInfo?.username}</span> is calling...</p>
             <div className="mt-3 flex justify-end space-x-2">
                 <button onClick={answerCall} className="bg-green-500 hover:bg-green-600 px-3 py-1 rounded-md text-sm font-semibold">Answer</button>
-                <button onClick={() => setIsReceivingCall(false)} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded-md text-sm font-semibold">Decline</button>
+                <button onClick={declineCall} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded-md text-sm font-semibold">Decline</button>
             </div>
         </div>
       )}
@@ -249,31 +345,75 @@ const ChatRoom = () => {
       </header>
       
       <main ref={messageContainerRef} className="flex-grow p-4 overflow-y-auto">
-        {messages.map((msg, index) => (
-          <div key={index} className={`mb-4 flex ${msg.sender === username ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-xs md:max-w-md`}>
-              <p className={`text-xs mb-1 ${msg.sender === username ? 'text-right' : 'text-left'} text-gray-500`}>
-                {msg.sender === username ? 'You' : msg.sender}
-              </p>
-              <div className={`px-4 py-2 rounded-xl ${msg.sender === username ? 'bg-purple-600' : 'bg-gray-800'}`}>
-                <p className="break-words">{msg.content}</p>
+        {loadingMessages && (
+          <div className="flex justify-center items-center py-4">
+            <div className="text-gray-500 text-sm">Loading chat history...</div>
+          </div>
+        )}
+        
+        {messages.map((msg, index) => {
+          const isFirstNewMessage = index > 0 && 
+            messages[index - 1].isOldMessage && 
+            !msg.isOldMessage && 
+            oldMessagesLoaded;
+          
+          return (
+            <div key={index}>
+              {isFirstNewMessage && (
+                <div className="flex items-center my-6">
+                  <div className="flex-grow border-t border-gray-600"></div>
+                  <div className="px-4 text-xs text-gray-500 bg-black">New Messages</div>
+                  <div className="flex-grow border-t border-gray-600"></div>
+                </div>
+              )}
+              <div className={`mb-4 flex ${msg.sender === username ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-xs md:max-w-md`}>
+                  <div className={`flex items-center gap-2 mb-1 ${msg.sender === username ? 'justify-end' : 'justify-start'}`}>
+                    <p className={`text-xs text-gray-500`}>
+                      {msg.sender === username ? 'You' : msg.sender}
+                    </p>
+                    {msg.timestamp && (
+                      <p className="text-xs text-gray-600">
+                        {new Date(msg.timestamp).toLocaleTimeString([], { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </p>
+                    )}
+                  </div>
+                  <div className={`px-4 py-2 rounded-xl ${
+                    msg.sender === username 
+                      ? 'bg-purple-600' 
+                      : msg.isOldMessage 
+                        ? 'bg-gray-700' 
+                        : 'bg-gray-800'
+                  }`}>
+                    <p className="break-words">{msg.content}</p>
+                  </div>
+                </div>
               </div>
             </div>
+          );
+        })}
+        
+        {!loadingMessages && messages.length === 0 && (
+          <div className="flex justify-center items-center py-8">
+            <div className="text-gray-500 text-sm">No messages yet. Start the conversation!</div>
           </div>
-        ))}
+        )}
       </main>
 
       <footer className="p-4">
-        <div className="flex bg-gray-900 border border-gray-700 rounded-lg p-1">
+        <div className="flex bg-gray-900 border border-gray-700 rounded-full p-1">
           <input
             type="text"
             value={currentMessage}
-            placeholder="Type your message..."
+            placeholder="Type your message and press enter..."
             onChange={(e) => setCurrentMessage(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
             className="flex-grow p-2 bg-transparent text-white focus:outline-none"
           />
-          <button onClick={sendMessage} className="bg-purple-600 text-white px-4 rounded-md hover:bg-purple-700 transition-colors duration-200">
+          <button onClick={sendMessage} className="bg-purple-600 text-white px-4 rounded-full hover:bg-purple-700 transition-colors duration-200">
             Send
           </button>
         </div>

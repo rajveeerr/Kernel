@@ -26,11 +26,12 @@ app.use(express.json());
 app.use('/api/users', userRoutes);
 
 const roomUsers={} //will be keeping is as {"roomId":[{username:"user1",id:"socketid"}]}
+const activeCalls={}
 
 io.on('connection', (socket) => {
   console.log(`A user connected with connection id ${socket.id}`);
 
-  socket.on('join_room', (data) => {
+  socket.on('join_room', async (data) => {
     const { roomId, username } = data;
     socket.join(roomId);
     socket.roomId=roomId;
@@ -41,7 +42,19 @@ io.on('connection', (socket) => {
     }
   roomUsers[roomId].push({username,id:socket.id});
 
+  try{
+    const oldMessages=await Message.find({roomId}).sort({createdAt:1}).limit(50);
+    socket.emit('load_old_messages',oldMessages);
+  }catch(err){
+    console.error('Error loading old messages:', err);
+    socket.emit('load_old_messages',[]);
+  }
+
   io.in(roomId).emit('update_user_list', roomUsers[roomId] || []);
+
+  if (activeCalls[roomId]) {
+    socket.emit('call_in_progress');
+  }
 
   });
 
@@ -52,6 +65,8 @@ io.on('connection', (socket) => {
 
   socket.on("make-answer",(data)=>{
     const {to,answer}=data;
+    activeCalls[socket.roomId] = true;
+    io.in(socket.roomId).emit('call_in_progress');
     io.to(to).emit("answer-made",{answer});
   })
 
@@ -60,8 +75,31 @@ io.on('connection', (socket) => {
     socket.to(to).emit("ice-candidate",{candidate});
   })
 
+  socket.on('end-call', (data) => {
+    const { roomId } = data;
+    delete activeCalls[roomId];
+    io.in(roomId).emit('call_ended');
+  });
+
     socket.on('send_message', async (data) => {
-    socket.to(data.roomId).emit('receive_message', data);
+        try{
+            const message = new Message({
+                roomId: data.roomId,
+                sender: data.sender,
+                content: data.content
+            });
+            await message.save();
+            
+            // Broadcast the message to other users in the room
+            socket.to(data.roomId).emit('receive_message', {
+                ...data,
+                timestamp: message.createdAt
+            });
+        }
+        catch(e){
+            console.error('Error saving message:', e);
+            socket.emit('message_error', { error: 'Failed to save message' });
+        }
   });
 
   socket.on('disconnect', () => {
@@ -72,6 +110,11 @@ io.on('connection', (socket) => {
       console.log(`User disconnected id ${socket.id}`);
 
       io.in(roomId).emit('update_user_list', roomUsers[roomId] || []);
+
+       if (activeCalls[roomId]) {
+        delete activeCalls[roomId];
+        io.in(roomId).emit('call_ended');
+      }
 
       if (roomUsers[roomId].length === 0) {
         delete roomUsers[roomId];
