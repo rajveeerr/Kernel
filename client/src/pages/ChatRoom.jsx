@@ -4,7 +4,8 @@ import io from 'socket.io-client';
 import toast from 'react-hot-toast';
 import UsernameModal from '../components/UsernameModal';
 import { FiUsers, FiPhone, FiPaperclip, FiMic, FiSend } from 'react-icons/fi';
-import CallUI from '../components/CallUI.jsx';
+import CallUI from '../components/callUI';
+
 
 
 const SOCKET_SERVER_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
@@ -304,7 +305,7 @@ const ChatRoom = () => {
       <audio ref={remoteAudioRef} autoPlay playsInline />
       
       {isInCall && (
-        <CallUI 
+        <CallUI
           isVisible={isInCall}
           localUsername={username}
           remoteUsername={callerInfo?.username || 'User'}
