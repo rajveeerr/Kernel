@@ -3,8 +3,8 @@ import { useParams } from 'react-router-dom';
 import io from 'socket.io-client';
 import toast from 'react-hot-toast';
 import UsernameModal from '../components/UsernameModal';
-import { FiUsers, FiPhone } from 'react-icons/fi';
-import CallUI from '../components/callUI';
+import { FiUsers, FiPhone, FiPaperclip, FiMic, FiSend } from 'react-icons/fi';
+import CallUI from '../components/CallUI.jsx';
 
 
 const SOCKET_SERVER_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
@@ -34,6 +34,7 @@ const ChatRoom = () => {
   const localStreamRef = useRef(null); 
   const remoteAudioRef = useRef(null); 
   const messageContainerRef = useRef(null);
+  const lastMessageRef = useRef(null);
 
   const toggleMute = useCallback(async () => {
     try {
@@ -64,11 +65,21 @@ const ChatRoom = () => {
     }, 2000);
   }, []);
 
+  const scrollToBottom = useCallback((behavior = 'auto') => {
+    const el = messageContainerRef.current;
+    if (!el) return;
+    setTimeout(() => {
+      try {
+        el.scrollTo({ top: el.scrollHeight, behavior });
+      } catch (e) {
+        el.scrollTop = el.scrollHeight;
+      }
+    }, 50);
+  }, []);
+
   useEffect(() => {
-    if (messageContainerRef.current) {
-      messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
-    }
-  }, [messages]);
+    scrollToBottom('smooth');
+  }, [messages, oldMessagesLoaded, scrollToBottom]);
 
   useEffect(() => {
     if (!username) return;
@@ -289,7 +300,7 @@ const ChatRoom = () => {
   }
 
   return (
-    <div className="bg-black flex flex-col h-screen text-white font-sans">
+  <div className="bg-black w-full items-center bg-gradient-to-b from-black via-purple-900/10 to-black min-h-screen flex flex-col text-white font-sans">
       <audio ref={remoteAudioRef} autoPlay playsInline />
       
       {isInCall && (
@@ -303,48 +314,85 @@ const ChatRoom = () => {
         />
       )}
 
-      {isReceivingCall && (
-        <div className="fixed top-5 right-5 bg-gray-800 p-4 rounded-lg shadow-lg z-50 border border-gray-700">
-            <p><span className="font-bold">{callerInfo?.username}</span> is calling...</p>
-            <div className="mt-3 flex justify-end space-x-2">
-                <button onClick={answerCall} className="bg-green-500 hover:bg-green-600 px-3 py-1 rounded-md text-sm font-semibold">Answer</button>
-                <button onClick={declineCall} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded-md text-sm font-semibold">Decline</button>
+          {isReceivingCall && (
+            <div className="fixed inset-x-0 top-6 flex justify-center z-50 pointer-events-none">
+              <div className="pointer-events-auto bg-gray-900/70 backdrop-blur-sm border border-gray-800 px-4 py-3 rounded-full flex items-center gap-4 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col">
+                    <span className="text-sm text-gray-200 font-semibold">Incoming call</span>
+                    <span className="text-xs text-gray-400">{callerInfo?.username || 'Unknown'}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button onClick={answerCall} className="bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded-md text-sm font-semibold">Answer</button>
+                  <button onClick={declineCall} className="bg-red-600 hover:bg-red-700 px-3 py-2 rounded-md text-sm font-semibold">Decline</button>
+                </div>
+              </div>
             </div>
-        </div>
-      )}
+          )}
 
-      <header className="p-4 flex justify-between items-center border-b border-gray-800">
-        <div className="flex-1">
-          <h1 className="text-xl font-bold">kernel<span className="font-mono text-purple-400">[chat]</span></h1>
-          <p className="text-sm text-gray-500 font-mono hidden md:block">{roomId}</p>
+      <header className="static  w-full py-6">
+        <div className="absolute inset-x-0 top-2 flex justify-center pointer-events-none">
+          <div className="pointer-events-auto bg-gray-900/60 border border-gray-800 backdrop-blur-sm px-4 py-2 rounded-full shadow-md flex items-center gap-3">
+            <h2 className="text-sm text-gray-300 font-semibold tracking-wide">{roomId || 'Group Chat'}</h2>
+            <div className="px-2 py-1 text-xs bg-purple-800/30 text-purple-300 rounded-full">{onlineUsers.length} online</div>
+          </div>
         </div>
 
-        <div className="flex items-center space-x-4">
-            <div className="relative">
-                <button onClick={() => setIsUserListVisible(!isUserListVisible)} className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors">
-                    <FiUsers className="w-6 h-6" />
-                    <span>{onlineUsers.length}</span>
-                </button>
-                {isUserListVisible && (
-                    <div className="absolute right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 z-20">
-                        <p className="px-4 py-2 text-xs text-gray-500 font-bold uppercase">Online Users</p>
-                        {onlineUsers.map((user) => (
-                            <div key={user.id} className="px-4 py-2 flex justify-between items-center hover:bg-gray-700/50">
-                                <span>{user.username}{user.id === socket.id && ' (You)'}</span>
-                                {user.id !== socket.id && !isInCall && (
-                                    <button onClick={() => { startCall(user); setIsUserListVisible(false); }} className="text-green-400 hover:text-green-300">
-                                        <FiPhone className="h-5 w-5" />
-                                    </button>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
+        <div className="px-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {/* <div className="w-8 h-8 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center">●</div> */}
+            <h1 className="text-lg font-bold">kernel<span className="font-mono text-purple-400">[chat]</span></h1>
+          </div>
+
+          <div className="relative">
+            <button onClick={() => setIsUserListVisible(!isUserListVisible)} className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors">
+              <FiUsers className="w-6 h-6" />
+              <span className="text-sm">{onlineUsers.length}</span>
+            </button>
+            {isUserListVisible && (
+              <div className="absolute right-0 mt-2 w-64 bg-black/50 backdrop-blur-sm border border-gray-800 rounded-2xl shadow-lg py-2 z-30">
+                <div className="px-4 py-2 flex items-center justify-between">
+                  <p className="text-xs text-gray-300 font-semibold">Online Users</p>
+                  <span className="text-xs bg-purple-800/30 text-purple-300 px-2 py-1 rounded-full">{onlineUsers.length}</span>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto">
+                  {onlineUsers.map((user) => (
+                    <button
+                      key={user.id}
+                      onClick={() => { }}
+                      className="w-full text-left px-4 py-2 flex items-center gap-3 hover:bg-purple-900/10 transition-colors"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center text-sm text-gray-300">
+                        {user.username ? user.username.charAt(0).toUpperCase() : '?'}
+                      </div>
+
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-100 font-medium">{user.username}{user.id === socket.id && ' (You)'}</span>
+                          {user.id !== socket.id && !isInCall && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); startCall(user); setIsUserListVisible(false); }}
+                              className="bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-md"
+                              aria-label={`Call ${user.username}`}
+                            >
+                              <FiPhone className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-400">{user.status || 'Available'}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
       
-      <main ref={messageContainerRef} className="flex-grow p-4 overflow-y-auto">
+  <main ref={messageContainerRef} className="flex-grow w-full p-4 pb-40 h-[80vh] max-w-6xl overflow-y-auto">
         {loadingMessages && (
           <div className="flex justify-center items-center py-4">
             <div className="text-gray-500 text-sm">Loading chat history...</div>
@@ -383,7 +431,7 @@ const ChatRoom = () => {
                   </div>
                   <div className={`px-4 py-2 rounded-4xl ${
                     msg.sender === username 
-                      ? 'bg-purple-600 rounded-br-none' 
+                      ? 'bg-purple-600 rounded-br-xl' 
                       : msg.isOldMessage 
                         ? 'bg-gray-700 rounded-bl-xl' 
                         : 'bg-gray-800 rounded-bl-xl '
@@ -403,21 +451,26 @@ const ChatRoom = () => {
         )}
       </main>
 
-      <footer className="p-4">
-        <div className="flex bg-gray-900 border border-gray-700 rounded-full p-1">
-          <input
-            type="text"
-            value={currentMessage}
-            placeholder="Type your message and press enter..."
-            onChange={(e) => setCurrentMessage(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-            className="flex-grow p-2 bg-transparent text-white focus:outline-none"
-          />
-          <button onClick={sendMessage} className="bg-purple-600 text-white px-4 rounded-full hover:bg-purple-700 transition-colors duration-200">
-            Send
-          </button>
+  <footer className="p-6 fixed inset-x-0 bottom-0">
+        <div className="mx-auto max-w-4xl">
+          <div className="flex items-center gap-3 bg-gray-900/60 backdrop-blur-sm border border-gray-800 rounded-3xl p-3">      
+            <input
+              type="text"
+              value={currentMessage}
+              placeholder="Type anything and press Enter"
+              onChange={(e) => setCurrentMessage(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+              className="flex-grow bg-transparent text-gray-200 placeholder-gray-400 focus:outline-none px-4 py-3"
+            />
+
+            <button onClick={sendMessage} aria-label="Send" className="w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-700 flex items-center justify-center transition-shadow shadow-md">
+              <FiSend className="w-5 h-5 text-white" />
+            </button>
+          </div>
         </div>
       </footer>
+
+  <div className="h-8" />
     </div>
   );
 };

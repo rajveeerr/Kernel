@@ -23,27 +23,28 @@ const CallUI = ({ isVisible = true, localUsername, remoteUsername, isMuted, onTo
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 bg-black flex flex-col p-4 md:p-8 z-40 font-sans">
-      <div className="flex-grow flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex flex-col p-4 md:p-8 z-40 font-sans items-center justify-center">
+      <div className="w-full max-w-4xl bg-gray-900/60 border border-gray-800 rounded-2xl p-6 flex flex-col md:flex-row gap-6 items-center justify-between">
         <UserCallCard username={remoteUsername} />
         <UserCallCard username={`${localUsername} (You)`} isMuted={isMuted} />
-      </div>
 
-      <div className="flex justify-center items-center mt-4">
-        <div className="flex space-x-4 p-3 bg-gray-900/80 border border-gray-700 backdrop-blur-sm rounded-full">
-          <button
-            onClick={onToggleMute}
-            className={`w-16 h-16 flex items-center justify-center rounded-full transition-colors duration-200 text-white ${isMuted ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-800 hover:bg-gray-700'}`}
-          >
-            {isMuted ? <FiMicOff className="w-6 h-6" /> : <FiMic className="w-6 h-6" />}
-          </button>
-          
-          <button 
-            onClick={onEndCall}
-            className="bg-red-600 hover:bg-red-700 text-white w-24 h-16 flex items-center justify-center rounded-full transition-colors duration-200"
-          >
-            <FiPhoneOff className="w-7 h-7" />
-          </button>
+        <div className="flex flex-col items-center gap-3 md:ml-4">
+          <div className="text-sm text-gray-300">In call</div>
+          <div className="flex space-x-4 p-3 bg-gray-900/80 border border-gray-700 backdrop-blur-sm rounded-full">
+            <button
+              onClick={onToggleMute}
+              className={`w-14 h-14 flex items-center justify-center rounded-full transition-colors duration-200 text-white ${isMuted ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+            >
+              {isMuted ? <FiMicOff className="w-6 h-6" /> : <FiMic className="w-6 h-6" />}
+            </button>
+
+            <button 
+              onClick={onEndCall}
+              className="bg-red-600 hover:bg-red-700 text-white w-16 h-14 flex items-center justify-center rounded-full transition-colors duration-200"
+            >
+              <FiPhoneOff className="w-6 h-6" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
