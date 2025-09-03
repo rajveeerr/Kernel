@@ -5,6 +5,7 @@ import http from 'http';
 import mongoose from 'mongoose'
 import cors from 'cors';
 import userRoutes from '../routes/user.js';
+import Message from '../models/message.js';
 
 dotenv.config();
 const mongoURL = process.env.MONGO_URL;
@@ -27,18 +28,19 @@ app.use('/api/users', userRoutes);
 io.on('connection', (socket) => {
   console.log(`A user connected with connection id ${socket.id}`);
 
-   socket.on('message',(data)=>{
-    console.log(data);
-    socket.emit('message',data);
-    })
+  socket.on('join_room', (roomId) => {
+    socket.join(roomId);
+    console.log(`User ${socket.id} joined room ${roomId}`);
+  });
+
+    socket.on('send_message', async (data) => {
+    socket.to(data.roomId).emit('receive_message', data);
+  });
 
   socket.on('disconnect', () => {
-    console.log('User disconnected');
+    console.log(`User disconnected id ${socket.id}`);
   });
 
-  socket.on('chat message', (msg) => {
-    io.emit('chat message', msg);
-  });
 });
 
 server.listen(port,async ()=>{
