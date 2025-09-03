@@ -381,12 +381,12 @@ const ChatRoom = () => {
                       </p>
                     )}
                   </div>
-                  <div className={`px-4 py-2 rounded-xl ${
+                  <div className={`px-4 py-2 rounded-4xl ${
                     msg.sender === username 
-                      ? 'bg-purple-600' 
+                      ? 'bg-purple-600 rounded-br-none' 
                       : msg.isOldMessage 
-                        ? 'bg-gray-700' 
-                        : 'bg-gray-800'
+                        ? 'bg-gray-700 rounded-bl-xl' 
+                        : 'bg-gray-800 rounded-bl-xl '
                   }`}>
                     <p className="break-words">{msg.content}</p>
                   </div>

@@ -15,7 +15,7 @@ function App() {
         position="bottom-right"
         toastOptions={{
           style: {
-            background: '#333',
+            background: '#000',
             color: '#fff',
           },
         }}
