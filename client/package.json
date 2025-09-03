@@ -19,7 +19,8 @@
     "react-router-dom": "^7.8.2",
     "router": "^2.2.0",
     "socket.io-client": "^4.8.1",
-    "uuid": "^11.1.0"
+  "uuid": "^11.1.0",
+  "react-icons": "^4.11.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
