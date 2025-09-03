@@ -333,7 +333,7 @@ const ChatRoom = () => {
           )}
 
       <header className="static  w-full py-6">
-        <div className="absolute inset-x-0 top-2 flex justify-center pointer-events-none">
+        <div className="absolute hidden inset-x-0 top-2 sm:flex justify-center pointer-events-none">
           <div className="pointer-events-auto bg-gray-900/60 border border-gray-800 backdrop-blur-sm px-4 py-2 rounded-full shadow-md flex items-center gap-3">
             <h2 className="text-sm text-gray-300 font-semibold tracking-wide">{roomId || 'Group Chat'}</h2>
             <div className="px-2 py-1 text-xs bg-purple-800/30 text-purple-300 rounded-full">{onlineUsers.length} online</div>
