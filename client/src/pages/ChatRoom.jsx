@@ -4,7 +4,7 @@ import io from 'socket.io-client';
 import toast from 'react-hot-toast';
 import UsernameModal from '../components/UsernameModal';
 import { FiUsers, FiPhone, FiPaperclip, FiMic, FiSend } from 'react-icons/fi';
-import CallUI from '../components/callUI';
+import CallUI from '../components/CallUI';
 
 
 
