@@ -12,7 +12,18 @@ const ChatRoom = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [username, setUsername] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [isInCall, setIsInCall]=useState(false);
+  const [otherUsers,setOtherUsers]=useState([]);
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [isUserListVisible, setIsUserListVisible] = useState(false);
+
+  const connectionRef=useRef(null);
+  const localStreamRef=useRef(null);
+  const remoteStreamRef=useRef(null)
   
+  const localAudioRef=useRef(null);
+  const remoteAudioRef=useRef(null);
+
   const [messages, setMessages] = useState([]);
   const [currentMessage, setCurrentMessage] = useState('');
   const messageContainerRef = useRef(null);
@@ -35,16 +46,24 @@ const ChatRoom = () => {
 
   useEffect(() => {
     if (username) {
-      socket.emit('join_room', roomId);
+      socket.emit('join_room', {roomId,username});
     }
 
     const messageListener = (data) => {
-      setMessages((prevMessages) => [...prevMessages, data]);
+      setMessages((prev) => [...prev, data]);
     };
+
+    
+    const userListListener = (users) => {
+      setOnlineUsers(users);
+    };
+    
     socket.on('receive_message', messageListener);
+    socket.on('update_user_list', userListListener);
 
     return () => {
       socket.off('receive_message', messageListener);
+      socket.off('update_user_list', userListListener);
     };
   }, [roomId, username]);
 
@@ -81,8 +100,31 @@ const ChatRoom = () => {
           <h1 className="text-xl font-bold">kernel<span className="text-purple-400 font-mono">[chat]</span></h1>
           <p className="text-sm text-gray-400">Room ID: <span className="font-mono">{roomId}</span></p>
         </div>
-        <div className="text-right">
-          <p className="text-sm text-gray-300">Logged in as: <span className="font-bold text-purple-400">{username}</span></p>
+         <div className="flex items-center space-x-4">
+            <div className="relative">
+                <button 
+                    onClick={() => setIsUserListVisible(!isUserListVisible)}
+                    className="flex items-center space-x-2 cursor-pointer"
+                >
+                    <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                    </span>
+                    <span>{onlineUsers.length} Online</span>
+                </button>
+                {isUserListVisible && (
+                    <div className="absolute right-0 mt-2 w-48 bg-gray-700 rounded-md shadow-lg py-1 z-20">
+                        {onlineUsers.map((user, index) => (
+                            <div key={index} className="px-4 py-2 text-sm text-gray-200">
+                                {user}{user === username && ' (You)'}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+            <div className="text-right">
+                <p className="text-sm text-gray-300">Logged in as: <span className="font-bold text-purple-400">{username}</span></p>
+            </div>
         </div>
       </header>
       

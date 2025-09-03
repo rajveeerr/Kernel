@@ -25,20 +25,57 @@ app.use(express.json());
 
 app.use('/api/users', userRoutes);
 
+const roomUsers={} //will be keeping is as {"roomId":["user1","user2"]}
+
 io.on('connection', (socket) => {
   console.log(`A user connected with connection id ${socket.id}`);
 
-  socket.on('join_room', (roomId) => {
+  socket.on('join_room', (data) => {
+    const { roomId, username } = data;
     socket.join(roomId);
+
+    socket.roomId=roomId;
+    socket.username=username;
+
+    if(!roomUsers[roomId]){
+        roomUsers[roomId]=[]
+    }
+  roomUsers[roomId].push(username);
+
+  io.in(roomId).emit('update_user_list', roomUsers[roomId] || []);
+
     console.log(`User ${socket.id} joined room ${roomId}`);
   });
+
+  socket.on("offer",(payload)=>{
+    io.to(payload.target).emit("offer",payload);
+  })
+
+  socket.on("answer",(payload)=>{
+    io.to(payload.target).emit("answer",payload);
+  })
+
+  socket.on("ice-candidate",(payload)=>{
+    io.to(payload.target).emit("ice-candidate",payload);
+  })
 
     socket.on('send_message', async (data) => {
     socket.to(data.roomId).emit('receive_message', data);
   });
 
   socket.on('disconnect', () => {
-    console.log(`User disconnected id ${socket.id}`);
+    const {roomId,username}=socket;
+
+    if (roomUsers[roomId]) {
+      roomUsers[roomId] = roomUsers[roomId].filter(user => user !== username);
+      console.log(`User disconnected id ${socket.id}`);
+
+      io.in(roomId).emit('update_user_list', roomUsers[roomId] || []);
+
+      if (roomUsers[roomId].length === 0) {
+        delete roomUsers[roomId];
+      }
+    }
   });
 
 });
