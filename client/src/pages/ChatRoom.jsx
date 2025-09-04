@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import toast from 'react-hot-toast';
 import UsernameModal from '../components/UsernameModal';
@@ -15,6 +15,7 @@ const socket = io.connect(SOCKET_SERVER_URL);
 
 const ChatRoom = () => {
   const { roomId } = useParams();
+  const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -351,7 +352,14 @@ const ChatRoom = () => {
         <div className="px-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* <div className="w-8 h-8 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center">●</div> */}
-            <h1 className="text-lg font-bold">kernel<span className="font-mono text-purple-400">[chat]</span></h1>            
+            <h1
+              onClick={() => navigate('/')}
+              className="text-lg font-bold cursor-pointer select-none"
+              title="Go to homepage"
+              role="button"
+            >
+              kernel<span className="font-mono text-purple-400">[chat]</span>
+            </h1>
           </div>
 
           <div className="relative">
@@ -402,10 +410,36 @@ const ChatRoom = () => {
       </header>
 
 
-          <main ref={messageContainerRef} className="flex-grow w-full p-4 pb-36 h-[40vh] overflow-y-auto">
-      <div className="w-full flex justify-center">
         <div className="chat-panel w-full max-w-3xl">
-          <div className="chat-banner mb-6 rounded-xl shadow-inner" aria-hidden="true" />
+          <div className="chat-banner mb-6 rounded-xl shadow-inner bg-black/60 border border-gray-800 p-4 flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-semibold text-white">{roomId || 'Group Chat'}</h3>
+              <p className="text-xs text-gray-300">{onlineUsers.length} online • One-time end-to-end encrypted chats</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  const shareData = { title: document.title, text: `Join me in ${roomId || 'this chat'}`, url: window.location.href };
+                  try {
+                    if (navigator.share) {
+                      await navigator.share(shareData);
+                      toast.success('Shared successfully');
+                    } else {
+                      await navigator.clipboard.writeText(window.location.href);
+                      toast.success('Room link copied to clipboard');
+                    }
+                  } catch (err) {
+                    try { await navigator.clipboard.writeText(window.location.href); toast.success('Room link copied to clipboard'); } catch (e) { toast.error('Could not share link'); }
+                  }
+                }}
+                className="text-sm px-3 py-2 rounded-full bg-gray-900/70 border border-gray-700 text-gray-100 hover:bg-gray-900"
+              >
+                Share
+              </button>
+            </div>
+          </div>
+      <div className="w-full flex justify-center">
+          <main ref={messageContainerRef} className="flex-grow w-full p-4 pb-36 h-[60vh] overflow-y-auto">
         {loadingMessages && (
           <div className="flex justify-center items-center py-4">
             <div className="text-gray-500 text-sm">Loading chat history...</div>
@@ -462,26 +496,27 @@ const ChatRoom = () => {
             <div className="text-gray-500 text-sm">No messages yet. Start the conversation!</div>
           </div>
         )}
+          </main>
         </div>
       </div>
-          </main>
 
   <footer className="p-6 fixed inset-x-0 bottom-0">
         <div className="footer-centered">
           <div className="w-full max-w-3xl">
-            <div className="flex items-center gap-3 bg-gray-900/60 backdrop-blur-sm border border-gray-800 rounded-3xl p-3">      
-            <input
-              type="text"
-              value={currentMessage}
-              placeholder="Type anything and press Enter"
-              onChange={(e) => setCurrentMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-              className="flex-grow bg-transparent text-gray-200 placeholder-gray-400 focus:outline-none px-4 py-3"
-            />
+            <div className="flex items-center gap-3 bg-gray-900/60 backdrop-blur-sm border border-gray-800 rounded-3xl p-2">    
+              <input
+                type="text"
+                aria-label="Message input"
+                value={currentMessage}
+                placeholder="Type a message..."
+                onChange={(e) => setCurrentMessage(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                className="flex-grow bg-gray-900/40 placeholder-gray-400 text-gray-200 focus:outline-none px-4 h-11 rounded-full border border-gray-800 leading-tight"
+              />
 
-            <button onClick={sendMessage} aria-label="Send" className="w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-700 flex items-center justify-center transition-shadow shadow-md">
-              <FiSend className="w-5 h-5 text-white" />
-            </button>
+              <button onClick={sendMessage} aria-label="Send" className="w-11 h-11 rounded-full bg-purple-600 hover:bg-purple-700 flex items-center justify-center transition-shadow shadow-md">
+                <FiSend className="w-4.5 h-4.5 text-white" />
+              </button>
             </div>
           </div>
         </div>

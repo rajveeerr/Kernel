@@ -45,7 +45,7 @@ const HomePage = () => {
       <div
         className="flex flex-col items-center justify-center text-white min-h-screen w-full"
         style={{
-          backgroundImage: "linear-gradient(rgba(0,0,0,0.18), rgba(0,0,0,0.9)), url('/gradient.jpg')",
+          backgroundImage: "linear-gradient(rgba(0,0,0,0.80), rgba(0,0,0,0.9)), url('/gradient.jpg')",
           // backgroundSize: 'cover',
           // backgroundRepeat: 'no-repeat',
           backgroundPosition: 'center'
