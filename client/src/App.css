@@ -1,0 +1,46 @@
+.chat-panel{
+	background: linear-gradient(180deg, rgba(10,10,10,0.9), rgba(7,6,10,0.85));
+	border: 1px solid rgba(120,90,200,0.06);
+	padding: 20px;
+	border-radius: 16px;
+	box-shadow: 0 6px 30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+}
+
+.chat-banner{
+	height: 120px;
+	background-image: linear-gradient(180deg, rgba(80,60,120,0.12), rgba(0,0,0,0.4)), url('/public/banner.jpg');
+	background-size: cover;
+	background-position-y: -120px;
+	border-radius: 10px;
+	border: 1px solid rgba(255,255,255,0.02);
+}
+
+.chat-panel .px-4.py-2.rounded-4xl{
+	font-size: 14px;
+	line-height: 1.35;
+	color: #e6e6e6;
+	max-width: 100%;
+	box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+}
+
+.chat-panel .bg-purple-600{
+	background: linear-gradient(180deg,#6b21a8,#5b0f9e);
+	border-radius: 18px 18px 6px 18px !important;
+}
+
+.chat-panel .bg-gray-800,
+.chat-panel .bg-gray-700{
+	background: linear-gradient(180deg,#0f1724,#0b0b0d);
+	border-radius: 18px 18px 18px 6px !important; 
+	border: 1px solid rgba(255,255,255,0.02);
+}
+
+.chat-panel .text-xs.text-gray-500,
+.chat-panel .text-xs.text-gray-600{
+	color: rgba(200,200,200,0.6) !important;
+}
+
+.footer-centered{
+	display:flex;
+	justify-content:center;
+}

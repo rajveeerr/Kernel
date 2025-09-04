@@ -31,6 +31,11 @@ const activeCalls={}
 io.on('connection', (socket) => {
   console.log(`A user connected with connection id ${socket.id}`);
 
+  socket.on('get_rooms', () => {
+    const rooms = Object.keys(roomUsers).map((id) => ({ id, users: roomUsers[id]?.length || 0 }));
+    socket.emit('rooms_list', rooms);
+  });
+
   socket.on('join_room', async (data) => {
     const { roomId, username } = data;
     socket.join(roomId);
@@ -51,6 +56,9 @@ io.on('connection', (socket) => {
   }
 
   io.in(roomId).emit('update_user_list', roomUsers[roomId] || []);
+
+  const rooms = Object.keys(roomUsers).map((id) => ({ id, users: roomUsers[id]?.length || 0 }));
+  io.emit('rooms_list', rooms);
 
   if (activeCalls[roomId]) {
     socket.emit('call_in_progress');
@@ -118,6 +126,8 @@ io.on('connection', (socket) => {
 
       if (roomUsers[roomId].length === 0) {
         delete roomUsers[roomId];
+  const rooms = Object.keys(roomUsers).map((id) => ({ id, users: roomUsers[id]?.length || 0 }));
+  io.emit('rooms_list', rooms);
       }
     }
   });

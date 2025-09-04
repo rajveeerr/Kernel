@@ -36,25 +36,6 @@ const ChatRoom = () => {
   const localStreamRef = useRef(null); 
   const remoteAudioRef = useRef(null); 
   const messageContainerRef = useRef(null);
-  const pendingIceRef = useRef([]);
-
-  const safeAddIceCandidate = useCallback(async (pc, candidate) => {
-    if (!pc) {
-      pendingIceRef.current.push(candidate);
-      return;
-    }
-
-    try {
-      await pc.addIceCandidate(candidate);
-    } catch (err) {
-      const isInvalidState = err && (err.name === 'InvalidStateError' || /remote description/i.test(err.message || ''));
-      if (isInvalidState) {
-        pendingIceRef.current.push(candidate);
-      } else {
-        console.warn('safeAddIceCandidate error:', err);
-      }
-    }
-  }, []);
 
   const toggleMute = useCallback(async () => {
     try {
@@ -156,12 +137,6 @@ const ChatRoom = () => {
         };
 
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        if (pendingIceRef.current.length) {
-          for (const c of pendingIceRef.current) {
-            await safeAddIceCandidate(pc, c);
-          }
-          pendingIceRef.current = [];
-        }
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
@@ -176,26 +151,19 @@ const ChatRoom = () => {
       try {
         if (peerConnectionRef.current) {
           await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
-          if (pendingIceRef.current.length) {
-            for (const c of pendingIceRef.current) {
-              await safeAddIceCandidate(peerConnectionRef.current, c);
-            }
-            pendingIceRef.current = [];
-          }
         }
       } catch (error) {
         console.error('Error setting remote description:', error);
       }
     };
 
-    const iceCandidateListener = async (data) => {
+    const iceCandidateListener = (data) => {
       try {
-        const cand = data && data.candidate;
-        if (!cand) return; 
-  const rtcCandidate = new RTCIceCandidate(cand);
-  await safeAddIceCandidate(peerConnectionRef.current, rtcCandidate);
+        if (peerConnectionRef.current) {
+          peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
       } catch (error) {
-        console.error('Error processing incoming ICE candidate:', error);
+        console.error('Error adding ICE candidate:', error);
       }
     };
 
@@ -302,7 +270,6 @@ const ChatRoom = () => {
       localStreamRef.current.getTracks().forEach(track => track.stop());
       localStreamRef.current = null;
     }
-  pendingIceRef.current = [];
     setIsReceivingCall(false);
     setCallerInfo(null);
   };
@@ -316,7 +283,6 @@ const ChatRoom = () => {
         localStreamRef.current.getTracks().forEach(track => track.stop());
         localStreamRef.current = null;
     }
-  pendingIceRef.current = [];
     setIsInCall(false);
     setIsReceivingCall(false);
     setCallerInfo(null);
@@ -335,7 +301,15 @@ const ChatRoom = () => {
   }
 
   return (
-  <div className="bg-black w-full items-center bg-gradient-to-b from-black via-purple-900/10 to-black min-h-screen flex flex-col text-white font-sans">
+  <div className="relative min-h-screen w-full font-sans">
+      <div
+        className="flex flex-col items-center justify-start text-white min-h-screen w-full"
+        style={{
+          backgroundImage: "linear-gradient(rgba(0,0,0,0.9), rgba(0,0,0,0.95)), url('/gradient.jpg')",
+          // backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      >
       <audio ref={remoteAudioRef} autoPlay playsInline />
       
       {isInCall && (
@@ -366,7 +340,7 @@ const ChatRoom = () => {
             </div>
           )}
 
-      <header className="static  w-full py-6">
+  <header className="static  w-full py-6 max-w-3xl">
         <div className="absolute hidden inset-x-0 top-2 sm:flex justify-center pointer-events-none">
           <div className="pointer-events-auto bg-gray-900/60 border border-gray-800 backdrop-blur-sm px-4 py-2 rounded-full shadow-md flex items-center gap-3">
             <h2 className="text-sm text-gray-300 font-semibold tracking-wide">{roomId || 'Group Chat'}</h2>
@@ -377,7 +351,7 @@ const ChatRoom = () => {
         <div className="px-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* <div className="w-8 h-8 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center">●</div> */}
-            <h1 className="text-lg font-bold">kernel<span className="font-mono text-purple-400">[chat]</span></h1>
+            <h1 className="text-lg font-bold">kernel<span className="font-mono text-purple-400">[chat]</span></h1>            
           </div>
 
           <div className="relative">
@@ -394,11 +368,8 @@ const ChatRoom = () => {
 
                 <div className="max-h-64 overflow-y-auto">
                   {onlineUsers.map((user) => (
-                    <div
+                    <button
                       key={user.id}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); /* click handler placeholder */ } }}
                       onClick={() => { }}
                       className="w-full text-left px-4 py-2 flex items-center gap-3 hover:bg-purple-900/10 transition-colors"
                     >
@@ -421,7 +392,7 @@ const ChatRoom = () => {
                         </div>
                         <div className="text-xs text-gray-400">{user.status || 'Available'}</div>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -429,8 +400,12 @@ const ChatRoom = () => {
           </div>
         </div>
       </header>
-      
-  <main ref={messageContainerRef} className="flex-grow w-full p-4 pb-40 h-[80vh] max-w-6xl overflow-y-auto">
+
+
+          <main ref={messageContainerRef} className="flex-grow w-full p-4 pb-36 h-[40vh] overflow-y-auto">
+      <div className="w-full flex justify-center">
+        <div className="chat-panel w-full max-w-3xl">
+          <div className="chat-banner mb-6 rounded-xl shadow-inner" aria-hidden="true" />
         {loadingMessages && (
           <div className="flex justify-center items-center py-4">
             <div className="text-gray-500 text-sm">Loading chat history...</div>
@@ -487,11 +462,14 @@ const ChatRoom = () => {
             <div className="text-gray-500 text-sm">No messages yet. Start the conversation!</div>
           </div>
         )}
-      </main>
+        </div>
+      </div>
+          </main>
 
   <footer className="p-6 fixed inset-x-0 bottom-0">
-        <div className="mx-auto max-w-4xl">
-          <div className="flex items-center gap-3 bg-gray-900/60 backdrop-blur-sm border border-gray-800 rounded-3xl p-3">      
+        <div className="footer-centered">
+          <div className="w-full max-w-3xl">
+            <div className="flex items-center gap-3 bg-gray-900/60 backdrop-blur-sm border border-gray-800 rounded-3xl p-3">      
             <input
               type="text"
               value={currentMessage}
@@ -504,12 +482,14 @@ const ChatRoom = () => {
             <button onClick={sendMessage} aria-label="Send" className="w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-700 flex items-center justify-center transition-shadow shadow-md">
               <FiSend className="w-5 h-5 text-white" />
             </button>
+            </div>
           </div>
         </div>
       </footer>
 
   <div className="h-8" />
     </div>
+  </div>
   );
 };
 
