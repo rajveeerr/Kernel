@@ -438,8 +438,8 @@ const ChatRoom = () => {
               </button>
             </div>
           </div>
-      <div className="w-full flex justify-center">
-          <main ref={messageContainerRef} className="flex-grow w-full p-4 pb-36 h-[60vh] overflow-y-auto">
+    <div className="w-full flex justify-center">
+      <main ref={messageContainerRef} className="flex-grow w-full p-4 pb-36 h-[60vh] overflow-y-auto no-scrollbar">
         {loadingMessages && (
           <div className="flex justify-center items-center py-4">
             <div className="text-gray-500 text-sm">Loading chat history...</div>
