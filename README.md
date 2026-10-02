@@ -11,6 +11,8 @@
 
 Kernel is a real-time, anonymous chat application designed for fast and private conversations. It provides room-based communication channels for both text and peer-to-peer audio calls without requiring permanent user accounts.
 
+**Write-up:** [How Kernel works, by Rajveer Singh](https://rajveers.com/projects/kernel)
+
 The core principle of Kernel is to facilitate immediate and secure interaction. Users can instantly create a private chat room, share the unique link, and begin conversing with others who join. All chat history is persistent for the life of the room, and audio calls are handled directly between peers for maximum privacy and performance.
 
 
